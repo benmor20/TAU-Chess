@@ -32,5 +32,6 @@ void loop()
   {
     int steps = Serial.parseInt();
     motor.step(steps);
+    delay(500);
   }
 }
