@@ -4,10 +4,10 @@ Adafruit Arduino - Lesson 16. Stepper
 
 #include <Stepper.h>
 
-int in1Pin = 12;
-int in2Pin = 11;
-int in3Pin = 10;
-int in4Pin = 9;
+int in1Pin = 11;
+int in2Pin = 10;
+int in3Pin = 9;
+int in4Pin = 6;
 
 Stepper motor(512, in1Pin, in2Pin, in3Pin, in4Pin);  
 
