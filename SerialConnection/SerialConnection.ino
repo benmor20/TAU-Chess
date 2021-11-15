@@ -1,5 +1,4 @@
 #include <Adafruit_MotorShield.h>
-#include <Stepper.h>
 
 #define BUFFER_LEN 128
 #define NUM_ANALOG 6
@@ -9,9 +8,9 @@
 
 int ANALOG_PINS[NUM_ANALOG] = {A0, A1, A2, A3, A4, A5};
 Adafruit_DCMotor* MOTORS[NUM_MOTORS];
+Adafruit_StepperMotor* STEPPERS[NUM_STEPPERS];
+int stepperModes[NUM_STEPPERS] = {SINGLE, SINGLE};
 const Adafruit_MotorShield motorShield = Adafruit_MotorShield();
-const int STEPPER_PINS[NUM_STEPPERS][4] = {{4, 5, 6, 7}, {8, 9, 10, 11}}
-Stepper STEPPERS[NUM_STEPPERS];
 
 char commandBuffer[BUFFER_LEN];
 int bufferPos = 0;
@@ -31,8 +30,13 @@ void writeToPin(PinType type, int pin, int value) {
   } else if (type == MOTOR) {
     MOTORS[pin]->setSpeed(value);
   } else if (type == STEPPER) {
-    STEPPERS[pin].step(value);
+    STEPPERS[pin]->step(abs(value), value > 0 ? FORWARD : BACKWARD, stepperModes[pin]);
   }
+  Serial.print("Writing to pin ");
+  Serial.print(type);
+  Serial.print(pin);
+  Serial.print(" value ");
+  Serial.println(value);
 }
 
 void setMode(PinType type, int pin, int mode) {
@@ -43,7 +47,7 @@ void setMode(PinType type, int pin, int mode) {
   } else if (type == MOTOR) {
     MOTORS[pin]->run(mode);
   } else if (type == STEPPER) {
-    STEPPERS[pin].setSpeed(mode);
+    stepperModes[pin] = mode;
   }
 }
 
@@ -53,6 +57,15 @@ int readValue(PinType type, int pin) {
     value = analogRead(pin);
   } else if (type == ANALOG) {
     value = analogRead(ANALOG_PINS[pin]);
+  }
+  return value;
+}
+
+int parseNum(int startPos, int base) {
+  int value = 0;
+  for (int pos = startPos; pos < BUFFER_LEN && commandBuffer[pos] != '\r'; pos++) {
+    value *= base;
+    value += commandBuffer[pos] <= '9' ? (commandBuffer[pos] - '0') : (commandBuffer[pos] - 'a' + 10);
   }
   return value;
 }
@@ -84,9 +97,8 @@ void processCommand() {
       value == LOW;
     }
     else {
-      byte tens = commandBuffer[3] <= '9' ? (commandBuffer[3] - '0') : (commandBuffer[3] - 'a' + 10);
-      byte ones = commandBuffer[4] <= '9' ? (commandBuffer[4] - '0') : (commandBuffer[4] - 'a' + 10);
-      value = 16 * tens + ones;
+      int sign = commandBuffer[3] == '-' ? -1 : 1;
+      value = parseNum(sign == 1 ? 3 : 4, 16) * sign;
     }
     writeToPin(type, pin, value);
   }
@@ -106,7 +118,7 @@ void processCommand() {
     } else if (commandBuffer[3] == 'B') {
       setMode(type, pin, BACKWARD);
     } else if (commandBuffer[3] >= '0' && commandBuffer[3] <= '9') {
-      setMode(type, pin, (commandBuffer[3] - '0') * 10 + (commandBuffer[4] - '0'));
+      setMode(type, pin, parseNum(3, 10));
     }
   }
 
@@ -131,9 +143,10 @@ void setup() {
     MOTORS[i]->run(BRAKE);
   }
 
-  // Initialize steppers
+  // Initialize motors
   for (int i = 0; i < NUM_STEPPERS; i++) {
-    STEPPERS[i] = Stepper(STEPS_PER_REV, STEPPER_PINS[i][0], STEPPER_PINS[i][1], STEPPER_PINS[i][2], STEPPER_PINS[i][3]);
+    STEPPERS[i] = motorShield.getStepper(STEPS_PER_REV, i + 1);
+    STEPPERS[i]->setSpeed(255);
   }
   
   Serial.println("Setup done.");
@@ -145,6 +158,7 @@ void loop() {
 
     if (c == '\r') {
       // End of command
+      commandBuffer[bufferPos] = c;
       processCommand();
       bufferPos = 0;
     }

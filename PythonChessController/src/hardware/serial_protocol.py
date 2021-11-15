@@ -68,7 +68,7 @@ def is_valid_speed(speed: int) -> bool:
 
     :returns: True if the speed is valid to send to the Arduino
     """
-    return isinstance(speed, int) and 0 <= speed <= 100
+    return isinstance(speed, int) and 0 < speed < 256
 
 
 def check_inputs(port: Union[str, int], value: Optional[Union[str, int]] = None, mode: Optional[str] = None,
@@ -83,7 +83,7 @@ def check_inputs(port: Union[str, int], value: Optional[Union[str, int]] = None,
     """
     if not is_valid_port(port):
         raise ValueError(f'Unknown port: {port}')
-    if value is not None and not is_valid_value(value):
+    if value is not None and port[0] != 'S' and not is_valid_value(value):
         raise ValueError(f'Unacceptable value: {value}')
     if mode is not None and mode not in MODES and mode not in MODES.values():
         raise ValueError(f'Unknown mode: {mode}')
@@ -120,8 +120,8 @@ def format_value(value: Union[bool, int]) -> str:
     if isinstance(value, bool):
         return 'H' if value else 'L'
     else:
-        out = hex(value)[2:]
-        return '0' * (2 - len(out)) + out  # Forces all numerical outputs to be 2 characters
+        neg = value < 0
+        return ('-' if neg else '') + hex(value)[(3 if neg else 2):]
 
 
 def format_speed(speed: int) -> str:
