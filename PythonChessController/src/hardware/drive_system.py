@@ -59,7 +59,7 @@ class Motor:
         self._port = f'{motor_type}{port}'
         self._reversed = reversed
         self._min_speed = 0 if self.is_dc_motor else 1
-        self._abs_max_speed = 255
+        self._abs_max_speed = 255 if motor_type == 'M' else 50
         self._max_speed = self._abs_max_speed if max_speed < 1 else max_speed
         self._current_power = self._min_speed / self._max_speed
         self._target_power = self._current_power

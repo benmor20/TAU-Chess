@@ -71,24 +71,27 @@ def is_valid_speed(speed: int) -> bool:
     return isinstance(speed, int) and 0 < speed < 256
 
 
-def check_inputs(port: Union[str, int], value: Optional[Union[str, int]] = None, mode: Optional[str] = None,
-                 speed: Optional[int] = None):
+def check_inputs(port: Union[str, int], value: Optional[Union[str, int]] = None,
+                 mode: Optional[Union[str, int]] = None):
     """
     Checks if the given inputs are able to be sent to the Arduino, raising an error otherwise.
 
     :param port: the port to check
     :param value: the value to check, defaulting to None (meaning pass)
     :param mode: the mode to check, defaulting to None (meaning pass)
-    :param speed: the speed to check, defaulting to None (meaning pass)
     """
     if not is_valid_port(port):
         raise ValueError(f'Unknown port: {port}')
     if value is not None and port[0] != 'S' and not is_valid_value(value):
-        raise ValueError(f'Unacceptable value: {value}')
-    if mode is not None and mode not in MODES and mode not in MODES.values():
+        raise ValueError(f'Unacceptable value for {port}: {value}')
+    if isinstance(mode, str) and mode is not None and mode not in MODES and mode not in MODES.values():
         raise ValueError(f'Unknown mode: {mode}')
-    if speed is not None and not is_valid_speed(speed):
-        raise ValueError(f'Unacceptable speed: {speed}')
+    if isinstance(mode, str) and port[0] == 'S':
+        raise ValueError(f'Cannot set stepper mode to {mode}')
+    if isinstance(mode, int) and port[0] != 'S':
+        raise ValueError(f'Cannot set mode to be an int ({mode}) with a non-stepper port ({port})')
+    if isinstance(mode, int) and mode <= 0:
+        raise ValueError(f'Cannot set stepper speed to less than 0 ({mode})')
 
 
 def format_port(port: Union[str, int]) -> str:
@@ -108,6 +111,15 @@ def format_port(port: Union[str, int]) -> str:
     return f'{zero}{port}'
 
 
+def hex_str(value: int):
+    """
+    :param value: a value to convert to hex
+    :return: a string representation of the value in hexadecimal
+    """
+    neg = value < 0
+    return ('-' if neg else '') + hex(value)[(3 if neg else 2):]
+
+
 def format_value(value: Union[bool, int]) -> str:
     """
     Formats the given value to give to the Arduino.
@@ -119,32 +131,23 @@ def format_value(value: Union[bool, int]) -> str:
     """
     if isinstance(value, bool):
         return 'H' if value else 'L'
-    else:
-        neg = value < 0
-        return ('-' if neg else '') + hex(value)[(3 if neg else 2):]
+    elif isinstance(value, int):
+        return hex_str(value)
 
 
-def format_speed(speed: int) -> str:
-    """
-    Formats the speed to send to the Arduino
-
-    :param speed: the speed for format
-    :return: a 2-character respresentation of the string
-    """
-    res = str(speed)
-    if speed < 10:
-        res = '0' + res
-    return res
-
-
-def format_mode(mode: str) -> str:
+def format_mode(mode: Union[str, int]) -> str:
     """
     Formats the mode to send to the Arduino
+    If mode is a string, returns a single-character representation of it, based on `MODES`
+    If mode is an int, returns a hex representation of it
 
     :param mode: the mode to format
-    :returns: the single-character mode key to send to the Arduino
+    :returns: a string representation of the mode to send to Arduino
     """
-    return MODES[mode] if mode in MODES else mode
+    if isinstance(mode, str):
+        return MODES[mode] if mode in MODES else mode
+    elif isinstance(mode, int):
+        return hex_str(mode)
 
 
 class Serial:
@@ -194,23 +197,7 @@ class Serial:
         if self.connected:
             self._write(f'{format_port(port)}:{format_value(value)}')
 
-    def set_speed(self, port: str, speed: int):
-        """
-        Sets the given motor port to the given speed
-
-        :param port: the motor port to set (must be Mp or Sp where p is a port between 0 and 3 inclusive)
-        :param speed: the speed to set. For DC Motors, 0-255. For steppers, 0-100
-        """
-        if port[0] == 'M':
-            self.set_value(port, speed)
-            return
-        check_inputs(port, speed=speed)
-        if port[0] != 'S':
-            raise ValueError(f'Can only set the speed of steppers or DC motors, not port {port}')
-        if self.connected:
-            self._write(f'{format_port(port)}-{format_speed(speed)}')
-
-    def set_mode(self, port: Union[str, int], mode: str):
+    def set_mode(self, port: Union[str, int], mode: Union[str, int]):
         """
         Sets the given port to the given mode.
 
@@ -220,6 +207,18 @@ class Serial:
         check_inputs(port, mode=mode)
         if self.connected:
             self._write(f'{format_port(port)}-{format_mode(mode)}')
+
+    def set_speed(self, port: str, speed: int):
+        """
+        Sets the speed of the given motor
+
+        :param port: The port to set the speed of
+        :param speed: The speed to set
+        """
+        if port[0] == 'M':
+            self.set_value(port, speed)
+        if port[0] == 'S':
+            self.set_mode(port, speed)
 
     def get_value(self, port: Union[str, int]) -> int:
         """
