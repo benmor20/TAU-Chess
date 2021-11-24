@@ -11,11 +11,6 @@ int bufferPos = 0;
 
 void writeToPin(int pin, int value) {
   STEPPERS[pin].moveRelativeInMillimeters(value);
-//  Serial.print("Writing to pin ");
-//  Serial.print(type);
-//  Serial.print(pin);
-//  Serial.print(" value ");
-//  Serial.println(value);
 }
 
 void setMode(int pin, int mode) {
@@ -58,6 +53,7 @@ void setup() {
   for (int i = 0; i < NUM_STEPPERS; i++) {
     STEPPERS[i].connectToPins(STEPPER_PINS[i][0], STEPPER_PINS[i][1]);
     STEPPERS[i].setAccelerationInStepsPerSecondPerSecond(100000);
+    STEPPERS[i].setStepsPerMillimeter(133);
   }
   
   Serial.println("Setup done.");
