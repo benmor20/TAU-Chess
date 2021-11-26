@@ -9,40 +9,56 @@ const int STEPPER_PINS[NUM_STEPPERS][2] = {{2, 5}, {3, 6}, {4, 7}};
 char commandBuffer[BUFFER_LEN];
 int bufferPos = 0;
 
-void writeToPin(int pin, int value) {
-  STEPPERS[pin].moveRelativeInMillimeters(value);
-}
-
-void setMode(int pin, int mode) {
-  STEPPERS[pin].setSpeedInMillimetersPerSecond(mode);
+void setMode(boolean isStepper, int pin, int mode) {
+  if (isStepper) {
+    STEPPERS[pin].setSpeedInMillimetersPerSecond(mode);
+  }
+  else {
+    pinMode(pin, mode);
+  }
 }
 
 int parseNum(int startPos, int base) {
   int value = 0;
-  for (int pos = startPos; pos < BUFFER_LEN && commandBuffer[pos] != '\r'; pos++) {
+  for (int pos = startPos; pos < BUFFER_LEN; pos++) {
+    char c = commandBuffer[pos];
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z'))) {
+      break;
+    }
+    
     value *= base;
-    value += commandBuffer[pos] <= '9' ? (commandBuffer[pos] - '0') : (commandBuffer[pos] - 'a' + 10);
+    value += c <= '9' ? (c - '0') : (c - 'a' + 10);
   }
   return value;
 }
 
 void processCommand() {
   // Find pin
-  int pin = (int)(commandBuffer[1] - '0');
-  if (commandBuffer[0] == '1') {
-    pin += 10;
-  }
+  boolean isStepper = commandBuffer[0] == 'S';
+  int pin = parseNum(isStepper ? 1 : 0, 10);
 
   // Set value
   if (commandBuffer[2] == ':') {
-    int sign = commandBuffer[3] == '-' ? -1 : 1;
-    int value = parseNum(sign == 1 ? 3 : 4, 16) * sign;
-    writeToPin(pin, value);
+    if (commandBuffer[3] == 'H') {
+      digitalWrite(pin, HIGH);
+      Serial.print("Turning on ");
+      Serial.println(pin);
+    }
+    else if (commandBuffer[3] == 'L') {
+      digitalWrite(pin, LOW);
+      Serial.print("Turning off ");
+      Serial.println(pin);
+    }
+    else {
+      int sign = commandBuffer[3] == '-' ? -1 : 1;
+      int value = parseNum(sign == 1 ? 3 : 4, 16) * sign;
+      STEPPERS[pin].moveRelativeInMillimeters(value);
+    }
   }
 
   // Set mode
   if (commandBuffer[2] == '-') {
-    setMode(pin, parseNum(3, 10));
+    setMode(isStepper, pin, parseNum(3, 10));
   }
 }
 

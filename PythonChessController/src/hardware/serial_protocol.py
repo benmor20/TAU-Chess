@@ -82,13 +82,14 @@ def check_inputs(port: Union[str, int], value: Optional[Union[str, int]] = None,
     """
     if not is_valid_port(port):
         raise ValueError(f'Unknown port: {port}')
-    if value is not None and port[0] != 'S' and not is_valid_value(value):
+    is_stepper = isinstance(port, str) and port[0] == 'S'
+    if value is not None and not is_stepper and not is_valid_value(value):
         raise ValueError(f'Unacceptable value for {port}: {value}')
     if isinstance(mode, str) and mode is not None and mode not in MODES and mode not in MODES.values():
         raise ValueError(f'Unknown mode: {mode}')
-    if isinstance(mode, str) and port[0] == 'S':
+    if isinstance(mode, str) and is_stepper:
         raise ValueError(f'Cannot set stepper mode to {mode}')
-    if isinstance(mode, int) and port[0] != 'S':
+    if isinstance(mode, int) and not is_stepper:
         raise ValueError(f'Cannot set mode to be an int ({mode}) with a non-stepper port ({port})')
     if isinstance(mode, int) and mode <= 0:
         raise ValueError(f'Cannot set stepper speed to less than 0 ({mode})')
@@ -230,7 +231,7 @@ class Serial:
         check_inputs(port)
         if self.connected:
             self._write(f'{port}?')
-            line = self.bridge.readline().decode()
+            line = self._read()
             # print(line)
             return int(line)
 
@@ -242,3 +243,13 @@ class Serial:
         """
         self.bridge.write(f'{msg}\r'.encode())
         # print(msg)
+        # if ':' in msg:
+        #     print(self._read())
+
+    def _read(self) -> str:
+        """
+        Waits for an output from the Arduino and returns it
+
+        :return: the Arduino's output
+        """
+        return self.bridge.readline().decode()
