@@ -21,7 +21,19 @@ drive_sys = drive.ChessDrive(s)
 
 
 def move_from_uci(drive_sys, move):
-    pass
+    if(move.length() == 4):
+        old_rank = move[0:1]
+        old_file = move[1:2]
+
+        new_rank = move[2:3]
+        new_file = move[3:4]
+
+        x_squares = ord(new_rank) - ord(old_rank)
+        y_squares = ord(new_file) - ord(old_file)
+
+        drive_sys.move([x_squares, y_squares, 0])
+    else:
+        print("Please enter a start and end square.")
 
 
 # user plays chess against engine

@@ -479,3 +479,6 @@ class ChessDrive(DriveSystem):
         x, y, _ = direction  # Chess system can't spin
         self._motor_powers = {'x': x * self._steps_per_square,
                               'y': y * self._steps_per_square}
+
+   
+
