@@ -41,13 +41,9 @@ void processCommand() {
   if (commandBuffer[2] == ':') {
     if (commandBuffer[3] == 'H') {
       digitalWrite(pin, HIGH);
-      Serial.print("Turning on ");
-      Serial.println(pin);
     }
     else if (commandBuffer[3] == 'L') {
       digitalWrite(pin, LOW);
-      Serial.print("Turning off ");
-      Serial.println(pin);
     }
     else {
       int sign = commandBuffer[3] == '-' ? -1 : 1;
