@@ -3,13 +3,9 @@
 #define BUFFER_LEN 128
 #define NUM_ANALOG 6
 #define NUM_MOTORS 4
-#define NUM_STEPPERS 2
-#define STEPS_PER_REV 200
 
 int ANALOG_PINS[NUM_ANALOG] = {A0, A1, A2, A3, A4, A5};
 Adafruit_DCMotor* MOTORS[NUM_MOTORS];
-Adafruit_StepperMotor* STEPPERS[NUM_STEPPERS];
-int stepperModes[NUM_STEPPERS] = {SINGLE, SINGLE};
 const Adafruit_MotorShield motorShield = Adafruit_MotorShield();
 
 char commandBuffer[BUFFER_LEN];
@@ -18,8 +14,7 @@ int bufferPos = 0;
 enum PinType {
   DIGITAL,
   ANALOG,
-  MOTOR,
-  STEPPER
+  MOTOR
 };
 
 void writeToPin(PinType type, int pin, int value) {
@@ -29,14 +24,12 @@ void writeToPin(PinType type, int pin, int value) {
     analogWrite(ANALOG_PINS[pin], value);
   } else if (type == MOTOR) {
     MOTORS[pin]->setSpeed(value);
-  } else if (type == STEPPER) {
-    STEPPERS[pin]->step(abs(value), value > 0 ? FORWARD : BACKWARD, stepperModes[pin]);
   }
-  Serial.print("Writing to pin ");
-  Serial.print(type);
-  Serial.print(pin);
-  Serial.print(" value ");
-  Serial.println(value);
+//  Serial.print("Writing to pin ");
+//  Serial.print(type);
+//  Serial.print(pin);
+//  Serial.print(" value ");
+//  Serial.println(value);
 }
 
 void setMode(PinType type, int pin, int mode) {
@@ -46,8 +39,6 @@ void setMode(PinType type, int pin, int mode) {
     pinMode(ANALOG_PINS[pin], mode);
   } else if (type == MOTOR) {
     MOTORS[pin]->run(mode);
-  } else if (type == STEPPER) {
-    stepperModes[pin] = mode;
   }
 }
 
@@ -78,9 +69,6 @@ void processCommand() {
   }
   else if (commandBuffer[0] == 'M') {
     type = MOTOR;
-  }
-  else if (commandBuffer[0] == 'S') {
-    type = STEPPER;
   }
   int pin = (int)(commandBuffer[1] - '0');
   if (commandBuffer[0] == '1') {
@@ -141,12 +129,6 @@ void setup() {
   for (int i = 0; i < NUM_MOTORS; i++) {
     MOTORS[i] = motorShield.getMotor(i + 1);
     MOTORS[i]->run(BRAKE);
-  }
-
-  // Initialize motors
-  for (int i = 0; i < NUM_STEPPERS; i++) {
-    STEPPERS[i] = motorShield.getStepper(STEPS_PER_REV, i + 1);
-    STEPPERS[i]->setSpeed(255);
   }
   
   Serial.println("Setup done.");
