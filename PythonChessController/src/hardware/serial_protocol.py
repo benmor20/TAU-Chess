@@ -11,7 +11,8 @@ MODES = {'INPUT': 'I',
          'BRAKE': 'S',
          'RELEASE': 'R',
          'FORWARD': 'F',
-         'BACKWARD': 'B'}
+         'BACKWARD': 'B',
+         'MATRIX': 'M'}
 
 
 def is_valid_port(port: Union[str, int]) -> bool:
@@ -221,7 +222,7 @@ class Serial:
         if port[0] == 'S':
             self.set_mode(port, speed)
 
-    def get_value(self, port: Union[str, int]) -> int:
+    def get_value(self, port: Union[str, int]) -> Union[int, str]:
         """
         Gets the value from the given port
 
@@ -232,8 +233,10 @@ class Serial:
         if self.connected:
             self._write(f'{port}?')
             line = self._read()
-            # print(line)
-            return int(line)
+            try:
+                return int(line)
+            except:
+                return line
 
     def _write(self, msg: str):
         """
@@ -252,4 +255,6 @@ class Serial:
 
         :return: the Arduino's output
         """
-        return self.bridge.readline().decode()
+        line = self.bridge.readline().decode()
+        print(line)
+        return line

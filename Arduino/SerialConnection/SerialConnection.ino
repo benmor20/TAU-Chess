@@ -3,7 +3,12 @@
 #define BUFFER_LEN 128
 #define NUM_ANALOG 6
 #define NUM_MOTORS 4
+#define NUM_MATPINS 6
 
+#define MATRIX_THRESHOLD 550
+
+int MATPINS[NUM_MATPINS] = {13, 12, 2, 11, 10, 9};
+boolean MATRIX[14 + NUM_ANALOG];
 int ANALOG_PINS[NUM_ANALOG] = {A0, A1, A2, A3, A4, A5};
 Adafruit_DCMotor* MOTORS[NUM_MOTORS];
 const Adafruit_MotorShield motorShield = Adafruit_MotorShield();
@@ -43,13 +48,42 @@ void setMode(PinType type, int pin, int mode) {
 }
 
 int readValue(PinType type, int pin) {
-  int value = -1;
-  if (type == DIGITAL) {
-    value = analogRead(pin);
-  } else if (type == ANALOG) {
-    value = analogRead(ANALOG_PINS[pin]);
+  if (MATRIX[pin + (type == ANALOG ? 14 : 0)]) {
+    
+  } else {
+    int value = -1;
+    if (type == DIGITAL) {
+      value = analogRead(pin);
+    } else if (type == ANALOG) {
+      value = analogRead(ANALOG_PINS[pin]);
+    }
+    return value;
   }
-  return value;
+}
+
+void printMatrixRecursive(PinType type, int pin, int index) {
+  if (index == NUM_MATPINS) {
+    if (type == DIGITAL) {
+      Serial.print(digitalRead(pin));
+    } else {
+      int value = analogRead(ANALOG_PINS[pin]);
+      boolean magnet = MATRIX_THRESHOLD > value;
+      Serial.print(magnet);
+    }
+  } else {
+    digitalWrite(MATPINS[index], HIGH);
+    printMatrixRecursive(type, pin, index + 1);
+    digitalWrite(MATPINS[index], LOW);
+    printMatrixRecursive(type, pin, index + 1);
+    if (index == NUM_MATPINS / 2) {
+      Serial.print(';');
+    }
+  }
+}
+
+void printMatrix(PinType type, int pin) {
+  printMatrixRecursive(type, pin, 0);
+  Serial.println();
 }
 
 int parseNum(int startPos, int base) {
@@ -95,8 +129,14 @@ void processCommand() {
   if (commandBuffer[2] == '-') {
     if (commandBuffer[3] == 'I') {
       setMode(type, pin, INPUT);
+      if (type == ANALOG || type == DIGITAL) {
+        MATRIX[pin + (type == ANALOG ? 14 : 0)] = false;
+      }
     } else if (commandBuffer[3] == 'O') {
       setMode(type, pin, OUTPUT);
+      if (type == ANALOG || type == DIGITAL) {
+        MATRIX[pin + (type == ANALOG ? 14 : 0)] = false;
+      }
     } else if (commandBuffer[3] == 'S') {
       setMode(type, pin, BRAKE);
     } else if (commandBuffer[3] == 'R') {
@@ -105,6 +145,9 @@ void processCommand() {
       setMode(type, pin, FORWARD);
     } else if (commandBuffer[3] == 'B') {
       setMode(type, pin, BACKWARD);
+    } else if (commandBuffer[3] == 'M') {
+      setMode(type, pin, INPUT);
+      MATRIX[pin + (type == ANALOG ? 14 : 0)] = true;
     } else if (commandBuffer[3] >= '0' && commandBuffer[3] <= '9') {
       setMode(type, pin, parseNum(3, 10));
     }
@@ -112,23 +155,33 @@ void processCommand() {
 
   // Read value
   if (commandBuffer[2] == '?') {
-    int value = readValue(type, pin);
-    Serial.println(value);
+    if ((type == ANALOG || type == DIGITAL) && MATRIX[pin + (type == ANALOG ? 14 : 0)]) {
+      printMatrix(type, pin);
+    }
+    else {
+      int value = readValue(type, pin);
+      Serial.println(value);
+    }
   }
 }
 
 void setup() {
   Serial.begin(115200);
   
-  if (!motorShield.begin()) {
-    Serial.println("Motor Shield not found. Check wiring.");
-    while (true) {}
-  }
-  
-  // Initialize motors
-  for (int i = 0; i < NUM_MOTORS; i++) {
-    MOTORS[i] = motorShield.getMotor(i + 1);
-    MOTORS[i]->run(BRAKE);
+//  if (!motorShield.begin()) {
+//    Serial.println("Motor Shield not found. Check wiring.");
+//    while (true) {}
+//  }
+//  
+//  // Initialize motors
+//  for (int i = 0; i < NUM_MOTORS; i++) {
+//    MOTORS[i] = motorShield.getMotor(i + 1);
+//    MOTORS[i]->run(BRAKE);
+//  }
+
+  // Setup matrix
+  for (int i = 0; i < NUM_MATPINS; i++) {
+    pinMode(MATPINS[i], OUTPUT);
   }
   
   Serial.println("Setup done.");

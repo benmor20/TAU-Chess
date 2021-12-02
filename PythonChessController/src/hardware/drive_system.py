@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from PythonChessController.src.hardware.serial_protocol import Serial
+from src.hardware.serial_protocol import Serial
 from typing import *
 
 
