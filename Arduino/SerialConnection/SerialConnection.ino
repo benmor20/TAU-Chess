@@ -5,9 +5,9 @@
 #define NUM_MOTORS 4
 #define NUM_MATPINS 6
 
-#define MATRIX_THRESHOLD 550
+#define MATRIX_THRESHOLD 850
 
-int MATPINS[NUM_MATPINS] = {13, 12, 2, 11, 10, 9};
+int MATPINS[NUM_MATPINS] = {2, 12, 13, 9, 10, 11};
 boolean MATRIX[14 + NUM_ANALOG];
 int ANALOG_PINS[NUM_ANALOG] = {A0, A1, A2, A3, A4, A5};
 Adafruit_DCMotor* MOTORS[NUM_MOTORS];
@@ -70,6 +70,7 @@ void printMatrixRecursive(PinType type, int pin, int index) {
       boolean magnet = MATRIX_THRESHOLD > value;
       Serial.print(magnet);
     }
+    delay(1);
   } else {
     digitalWrite(MATPINS[index], HIGH);
     printMatrixRecursive(type, pin, index + 1);
