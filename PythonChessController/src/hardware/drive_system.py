@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from serial_protocol import Serial
+from hardware.serial_protocol import Serial
 from typing import *
 
 
@@ -54,22 +54,17 @@ def stop_to_run(mode: StopMode) -> RunMode:
 
 
 class Motor:
-    def __init__(self, port: int, serial: Serial, reversed: bool = False, max_output: int = 255):
-        """
-        :param port: the port this motor is connected to
-        :param serial: the serial bridge to interface with the Arduino
-        :param reversed: whether to flip the direction of this motor
-        :param max_output: the maximum value to send to the motor (less than 256)
-        """
-        self._port = f'M{port}'
+    def __init__(self, serial: Serial, motor_type: str, port: int, reversed: bool = False, max_speed: int = -1):
         self._serial = serial
-        self._current_power = 0
-        self._target_power = 0
-        self._accel_lim = 0.1
-        self._stop_mode = StopMode.BRAKE
-        self._run_mode = RunMode.BRAKE
+        self._port = f'{motor_type}{port}'
         self._reversed = reversed
-        self._max_output = max_output
+        self._min_speed = 0 if self.is_dc_motor else 1
+        self._abs_max_speed = 255 if motor_type == 'M' else 37
+        self._max_speed = self._abs_max_speed if max_speed < 1 else max_speed
+        self._current_power = 0 if self.is_dc_motor else 1
+        self._serial.set_speed(self._port, int(abs(self._current_power) * self._max_speed))
+        self._target_power = self._current_power
+        self._accel_lim = 1 if self.is_dc_motor else 100
 
     @property
     def port(self) -> int:
@@ -77,6 +72,20 @@ class Motor:
         :return: the port this motor is connected to
         """
         return int(self._port[-1])
+
+    @property
+    def is_dc_motor(self) -> bool:
+        """
+        :return: true iff this motor is a DC Motor
+        """
+        return self._port[0] == 'M'
+
+    @property
+    def is_stepper(self) -> bool:
+        """
+        :return: true iff this motor is a stepper motor
+        """
+        return self._port[0] == 'S'
 
     @property
     def current_power(self) -> float:
@@ -97,7 +106,7 @@ class Motor:
         """
         :return: the maximum value this motor will send to the Arduino
         """
-        return self._max_output
+        return self._max_speed
 
     @property
     def accel_lim(self) -> float:
@@ -114,20 +123,6 @@ class Motor:
         return self._reversed
 
     @property
-    def mode(self) -> RunMode:
-        """
-        :return: the current mode this motor is running
-        """
-        return self._run_mode
-
-    @property
-    def stop_mode(self) -> StopMode:
-        """
-        :return: the mode this motor switches to when it stops
-        """
-        return self._stop_mode
-
-    @property
     def accelerating(self) -> bool:
         """
         :return: whether this motor has not yet reached its target power
@@ -139,7 +134,7 @@ class Motor:
         """
         :return: whether this motor is currently not in motion
         """
-        return self.mode.stopped
+        return self.current_power == self._min_speed / self._max_speed
 
     def set_power(self, power: float):
         """
@@ -156,6 +151,70 @@ class Motor:
         :param accel_limit: the accel limit to set
         """
         self._accel_lim = accel_limit
+
+    def stop(self):
+        """
+        Stops the motor, respecting the accel limit
+        """
+        self.set_power(0)
+
+    def hard_stop(self):
+        """
+        Stops this motor, ignoring the accel limit
+        """
+        self.stop()
+        self._current_power = 0
+        self._serial.set_value(self._port, 0)
+
+    def update(self):
+        """
+        Updates the motor, incrementing the current power towards the target
+        while respecting the accel limit. To be called once each loop per motor.
+        """
+        print(f'motor: {self.port}')
+        print(f'current: {self.current_power}')
+        print(f'target: {self.target_power}')
+        print(f'accel lim: {self.accel_lim}')
+        print(f'port: {self._port}')
+        print(f'max speed: {self._max_speed}')
+        if not self.accelerating:
+            return
+        elif self.current_power < self.target_power:
+            new_pow = min(self.current_power + self.accel_lim, self.target_power)
+        else:
+            new_pow = max(self.current_power - self.accel_lim, self.target_power)
+        print(f'new pow: {new_pow}')
+        self._serial.set_speed(self._port, int(abs(new_pow) * self._max_speed))
+        self._current_power = new_pow
+
+
+class DcMotor(Motor):
+    def __init__(self, port: int, serial: Serial, reversed: bool = False, max_speed: int = 255):
+        """
+        :param port: the port this motor is connected to
+        :param serial: the serial bridge to interface with the Arduino
+        :param reversed: whether to flip the direction of this motor
+        :param max_output: the maximum value to send to the motor (less than 256)
+        """
+        super().__init__(serial, 'M', port, reversed=reversed, max_speed=max_speed)
+        self._stop_mode = StopMode.BRAKE
+        self._run_mode = RunMode.BRAKE
+        self._reversed = reversed
+        self._max_speed = max_speed
+
+    @property
+    def mode(self) -> RunMode:
+        """
+        :return: the current mode this motor is running
+        """
+        return self._run_mode
+
+    @property
+    def stop_mode(self) -> StopMode:
+        """
+        :return: the mode this motor switches to when it stops
+        """
+        return self._stop_mode
 
     def set_stop_mode(self, stop_mode: StopMode):
         """
@@ -177,19 +236,11 @@ class Motor:
         self._serial.set_mode(self._port, mode.code)
         self._run_mode = mode
 
-    def stop(self):
-        """
-        Stops the motor, respecting the accel limit
-        """
-        self.set_power(0)
-
     def hard_stop(self):
         """
         Stops this motor, ignoring the accel limit
         """
-        self.stop()
-        self._current_power = 0
-        self._serial.set_value(self._port, 0)
+        super().hard_stop()
         self._set_run_mode(stop_to_run(self.stop_mode))
 
     def update(self):
@@ -202,14 +253,52 @@ class Motor:
             if self.target_power == 0:
                 self._set_run_mode(stop_to_run(self.stop_mode))
             return
-        if self.current_power < self.target_power:
-            new_pow = min(self.current_power + self.accel_lim, self.target_power)
-        else:
-            new_pow = max(self.current_power - self.accel_lim, self.target_power)
-        if new_pow * self.current_power < 0 or self.stopped:
-            self._set_run_mode(RunMode.FORWARD if new_pow > 0 else RunMode.BACKWARD)
-        self._serial.set_value(self._port, int(abs(new_pow) * self._max_output))
-        self._current_power = new_pow
+        last_pow = self.current_power
+        super().update()
+        if last_pow * self.current_power < 0 or self.stopped:
+            self._set_run_mode(RunMode.FORWARD if self.current_power > 0 else RunMode.BACKWARD)
+
+
+class Stepper(Motor):
+    def __init__(self, serial: Serial, port: int, reversed: bool = False, max_speed: int = -1):
+        super().__init__(serial, 'S', port, reversed=reversed, max_speed=max_speed)
+        self._current_pos = 0
+        self._pos_to_send = 0
+
+    @property
+    def current_position(self) -> int:
+        """
+        :return: The motor's current position
+        """
+        return self._current_pos
+
+    def move_to_pos(self, position: int):
+        """
+        :param position: The position to set the motor to
+        """
+        self._pos_to_send = position - self._current_pos
+
+    def increment_pos(self, increment: int):
+        """
+        :param increment: the amount to increment the position by
+        """
+        self._pos_to_send += increment
+
+    def decrement_pos(self, decrement: int):
+        """
+        :param decrement: the amount to decrement the position by
+        """
+        self._pos_to_send -= decrement
+
+    def update(self):
+        """
+        Updates the motor, incrementing the current power towards the target
+        while respecting the accel limit. To be called once each loop per motor.
+        """
+        super().update()
+        self._serial.set_value(self._port, self._pos_to_send)
+        self._current_pos += self._pos_to_send
+        self._pos_to_send = 0
 
 
 class DriveSystem:
@@ -221,6 +310,24 @@ class DriveSystem:
         self._motors = motors
         self._last_direction = (0, 0, 0)
         self.stop()
+
+    @property
+    def _dc_motors(self) -> Iterable[DcMotor]:
+        """
+        :yield: each DC Motor this drive system has
+        """
+        for motor in self._motors.values():
+            if isinstance(motor, DcMotor):
+                yield motor
+
+    @property
+    def _stepper_motors(self) -> Iterable[Stepper]:
+        """
+        :yield: each Stepper Motor this drive system has
+        """
+        for motor in self._motors.values():
+            if isinstance(motor, Stepper):
+                yield motor
 
     @property
     def motor_speeds(self) -> Dict[str, int]:
@@ -246,7 +353,7 @@ class DriveSystem:
         """
         :return: the current stop mode of the motors
         """
-        for motor in self._motors.values():
+        for motor in self._dc_motors:
             return motor.stop_mode
 
     @property
@@ -271,8 +378,21 @@ class DriveSystem:
 
         :param stop_mode: the stop mode to set
         """
-        for motor in self._motors.values():
+        for motor in self._dc_motors:
             motor.set_stop_mode(stop_mode)
+
+    def set_stepper_power(self, power: Union[float, Dict[str, float]]):
+        """
+        Sets the power of each of the stepper motors
+
+        :param power: a float to set all stepper powers to, or a dict mapping stepper to power
+        """
+        if isinstance(power, float):
+            for stepper in self._stepper_motors:
+                stepper.set_power(power)
+        elif isinstance(power, dict):
+            for name, pow in power:
+                self._motors[name].set_power(pow)
 
     def move(self, direction: Tuple[float, float, float]):
         """
@@ -285,8 +405,6 @@ class DriveSystem:
             1 (right).
         """
         x, y, s = direction
-        if abs(x) > 1 or abs(y) > 1 or abs(s) > 1:
-            raise ValueError(f'No direction can have a magnitude more than 1: {direction}')
         self._calculate_powers(direction)
         self._constrain_powers()
         self._commit_powers()
@@ -296,16 +414,20 @@ class DriveSystem:
         """
         Resets motor powers so they are all between -1 and 1
         """
-        for motor, power in self._motor_powers.items():
-            if abs(power) > 1:
-                self._motor_powers[motor] /= abs(power)
+        for motor_name, power in self._motor_powers.items():
+            if isinstance(self._motors[motor_name], DcMotor) and abs(power) > 1:
+                self._motor_powers[motor_name] /= abs(power)
 
     def _commit_powers(self):
         """
         Sends the current powers to the motors
         """
-        for motor, power in self._motor_powers.items():
-            self._motors[motor].set_power(power)
+        for motor_name, power in self._motor_powers.items():
+            motor = self._motors[motor_name]
+            if isinstance(motor, DcMotor):
+                motor.set_power(power)
+            elif isinstance(motor, Stepper):
+                motor.increment_pos(power)
 
     @abstractmethod
     def _calculate_powers(self, direction: Tuple[float, float, float]):
@@ -336,3 +458,27 @@ class DriveSystem:
         """
         for motor in self._motors.values():
             motor.update()
+
+
+class ChessDrive(DriveSystem):
+    def __init__(self, serial: Serial, steps_per_square: int = 51):
+        """
+        :param serial: the Serial bridge to initialize the motors with
+        """
+        motors = {'x': Stepper(serial, 0), 'y': Stepper(serial, 1)}
+        self._steps_per_square = steps_per_square
+        super().__init__(motors)
+
+    def _calculate_powers(self, direction: Tuple[float, float, float]):
+        """
+        Given a certain direction, calculates the powers for each motor,
+        saving them in `_motor_powers`
+
+        :param direction: the target direction to move (see `move`)
+        """
+        x, y, _ = direction  # Chess system can't spin
+        self._motor_powers = {'x': x * self._steps_per_square,
+                              'y': y * self._steps_per_square}
+
+   
+
