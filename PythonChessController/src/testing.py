@@ -1,22 +1,17 @@
 from hardware.serial_protocol import Serial
-from hardware.drive_system import Stepper
+from hardware.devices import MoveSensor
+from hardware.drive_system import ChessDrive, Stepper
 from time import sleep
 
 
 if __name__ == '__main__':
-    s1 = Serial('COM13')
-    s1.wait_for_setup()
-    s2 = Serial('COM14')
-    s2.wait_for_setup()
-    step = Stepper(s2, 0)
-
-    s1.set_value(13, True)
-    step.move_to_pos(1000)
-    step.update()
-    sleep(2)
-
+    serial = Serial()
+    move_sensor = MoveSensor(serial, 'A0')
     while True:
-        s1.set_value(13, False)
+        print(f'Pickup: {move_sensor.pick_up}, val: {move_sensor.value}, sensed: {move_sensor._matrix.value}')
+        move_sensor.reset()
         sleep(0.5)
-        s1.set_value(13, True)
-        sleep(0.5)
+
+    # drive = ChessDrive(serial)
+    # drive.move((-1, 1))
+    # drive.update()

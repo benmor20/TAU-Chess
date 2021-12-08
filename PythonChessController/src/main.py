@@ -9,7 +9,6 @@ from time import sleep
 
 if __name__ == '__main__':
     serial = Serial()
-    serial.wait_for_setup()
     print('Setup')
 
     # stepper = Stepper(serial, 1)

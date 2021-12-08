@@ -467,7 +467,19 @@ class ChessDrive(DriveSystem):
         """
         motors = {'x': Stepper(serial, 0), 'y': Stepper(serial, 1)}
         self._steps_per_square = steps_per_square
+        self.last_x = 0
+        self.current_pos = (0, 0)
         super().__init__(motors)
+        print('Setup chess')
+
+    def reset_pos(self):
+        self.current_pos = (0, 0)
+
+    def move_to(self, pos):
+        self.move((pos[0] - self.current_pos[0], pos[1] - self.current_pos[1]))
+
+    def move(self, move):
+        super().move(move if len(move) == 3 else (move[0], move[1], 0))
 
     def _calculate_powers(self, direction: Tuple[float, float, float]):
         """
@@ -477,8 +489,8 @@ class ChessDrive(DriveSystem):
         :param direction: the target direction to move (see `move`)
         """
         x, y, _ = direction  # Chess system can't spin
-        self._motor_powers = {'x': x * self._steps_per_square,
+        offset = 10 if x * self.last_x < 0 else 0
+        self._motor_powers = {'x': x * self._steps_per_square + offset * (-1 if x < 0 else 1),
                               'y': y * self._steps_per_square}
-
-   
-
+        self.last_x = x
+        self.current_pos = (self.current_pos[0] + x, self.current_pos[1] + y)

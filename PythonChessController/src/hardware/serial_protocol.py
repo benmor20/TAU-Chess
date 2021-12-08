@@ -179,6 +179,7 @@ class Serial:
                 print(err)
                 self.bridge = None
                 self.connected = False
+        self.wait_for_setup()
 
     def wait_for_setup(self):
         """
@@ -256,5 +257,5 @@ class Serial:
         :return: the Arduino's output
         """
         line = self.bridge.readline().decode()
-        print(line)
+        # print(line)
         return line
