@@ -22,7 +22,7 @@ def is_valid_port(port: Union[str, int]) -> bool:
     If port is a str, returns True if it can be cast to an int in the above
     range, or if the first character is 'A' followed by a number 0-5, or if
     the first character is 'M' followed by a number 0-3, or if the first
-    character is 'S' followed by '0' or '1'
+    character is 'S' followed by a number 0-2
     These match the possible Arduino pins with a motor shield, including
     DC Motors (M) vs stepper motors (S)
 
@@ -38,7 +38,7 @@ def is_valid_port(port: Union[str, int]) -> bool:
         elif port[0] == 'M':
             return port[1] in '0123'
         elif port[0] == 'S':
-            return port[1] in '01'
+            return port[1] in '012'
         try:
             int_port = int(port)
             return 0 <= int_port <= 13

@@ -148,7 +148,7 @@ class MoveSensor(CachedValue):
 
     @staticmethod
     def _index_to_move(indexes):
-        return chr(indexes[0] + ord('a')) + str(indexes[1] + 1)
+        return chr(indexes[1] + ord('a')) + str(8 - indexes[0])
 
     @property
     def _type(self) -> TypeVar:
