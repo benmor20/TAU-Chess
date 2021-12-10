@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from src.hardware.serial_protocol import Serial
+from hardware.serial_protocol import Serial
 from typing import *
 
 
@@ -59,11 +59,12 @@ class Motor:
         self._port = f'{motor_type}{port}'
         self._reversed = reversed
         self._min_speed = 0 if self.is_dc_motor else 1
-        self._abs_max_speed = 255
+        self._abs_max_speed = 255 if motor_type == 'M' else 37
         self._max_speed = self._abs_max_speed if max_speed < 1 else max_speed
-        self._current_power = self._min_speed / self._max_speed
+        self._current_power = 0 if self.is_dc_motor else 1
+        self._serial.set_speed(self._port, int(abs(self._current_power) * self._max_speed))
         self._target_power = self._current_power
-        self._accel_lim = 1
+        self._accel_lim = 1 if self.is_dc_motor else 100
 
     @property
     def port(self) -> int:
@@ -170,12 +171,15 @@ class Motor:
         Updates the motor, incrementing the current power towards the target
         while respecting the accel limit. To be called once each loop per motor.
         """
+        print(f'motor: {self.port}')
         print(f'current: {self.current_power}')
         print(f'target: {self.target_power}')
         print(f'accel lim: {self.accel_lim}')
         print(f'port: {self._port}')
         print(f'max speed: {self._max_speed}')
-        if self.current_power < self.target_power:
+        if not self.accelerating:
+            return
+        elif self.current_power < self.target_power:
             new_pow = min(self.current_power + self.accel_lim, self.target_power)
         else:
             new_pow = max(self.current_power - self.accel_lim, self.target_power)
@@ -377,6 +381,19 @@ class DriveSystem:
         for motor in self._dc_motors:
             motor.set_stop_mode(stop_mode)
 
+    def set_stepper_power(self, power: Union[float, Dict[str, float]]):
+        """
+        Sets the power of each of the stepper motors
+
+        :param power: a float to set all stepper powers to, or a dict mapping stepper to power
+        """
+        if isinstance(power, float):
+            for stepper in self._stepper_motors:
+                stepper.set_power(power)
+        elif isinstance(power, dict):
+            for name, pow in power:
+                self._motors[name].set_power(pow)
+
     def move(self, direction: Tuple[float, float, float]):
         """
         Moves the robot in the given direction
@@ -444,13 +461,25 @@ class DriveSystem:
 
 
 class ChessDrive(DriveSystem):
-    def __init__(self, serial: Serial, steps_per_square: int = 50):
+    def __init__(self, serial: Serial, steps_per_square: int = 51):
         """
         :param serial: the Serial bridge to initialize the motors with
         """
         motors = {'x': Stepper(serial, 0), 'y': Stepper(serial, 1)}
-        super().__init__(motors)
         self._steps_per_square = steps_per_square
+        self.last_x = 0
+        self.current_pos = (0, 0)
+        super().__init__(motors)
+        print('Setup chess')
+
+    def reset_pos(self):
+        self.current_pos = (0, 0)
+
+    def move_to(self, pos):
+        self.move((pos[0] - self.current_pos[0], pos[1] - self.current_pos[1]))
+
+    def move(self, move):
+        super().move(move if len(move) == 3 else (move[0], move[1], 0))
 
     def _calculate_powers(self, direction: Tuple[float, float, float]):
         """
@@ -460,5 +489,8 @@ class ChessDrive(DriveSystem):
         :param direction: the target direction to move (see `move`)
         """
         x, y, _ = direction  # Chess system can't spin
-        self._motor_powers = {'x': x * self._steps_per_square,
+        offset = 10 if x * self.last_x < 0 else 0
+        self._motor_powers = {'x': x * self._steps_per_square + offset * (-1 if x < 0 else 1),
                               'y': y * self._steps_per_square}
+        self.last_x = x
+        self.current_pos = (self.current_pos[0] + x, self.current_pos[1] + y)
