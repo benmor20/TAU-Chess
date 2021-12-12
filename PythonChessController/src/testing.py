@@ -6,5 +6,5 @@ from time import sleep
 if __name__ == '__main__':
     serial = Serial()
     stepper = Stepper(serial, 1)
-    stepper.move_to_pos(50)
+    stepper.move_to_pos(-50)
     stepper.update()
