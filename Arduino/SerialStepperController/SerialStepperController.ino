@@ -48,7 +48,7 @@ void processCommand() {
     else {
       int sign = commandBuffer[3] == '-' ? -1 : 1;
       int value = parseNum(sign == 1 ? 3 : 4, 16) * sign;
-      STEPPERS[pin].moveRelativeInMillimeters(value);
+      STEPPERS[pin].setupRelativeMoveInMillimeters(value);
     }
   }
 
@@ -64,7 +64,7 @@ void setup() {
   // Initialize steppers
   for (int i = 0; i < NUM_STEPPERS; i++) {
     STEPPERS[i].connectToPins(STEPPER_PINS[i][0], STEPPER_PINS[i][1]);
-    STEPPERS[i].setAccelerationInStepsPerSecondPerSecond(100000);
+    STEPPERS[i].setAccelerationInStepsPerSecondPerSecond(500);
     STEPPERS[i].setStepsPerMillimeter(133);
   }
   
@@ -90,5 +90,8 @@ void loop() {
       commandBuffer[bufferPos] = c;
       bufferPos++;
     }
+  }
+  for (int i = 0; i < NUM_STEPPERS; i++) {
+    STEPPERS[i].processMovement();
   }
 }
