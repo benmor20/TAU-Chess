@@ -22,68 +22,84 @@ enum PinType {
   MOTOR
 };
 
-void writeToPin(PinType type, int pin, int value) {
-  if (type == DIGITAL) {
-    digitalWrite(pin, value);
-  } else if (type == ANALOG) {
-    analogWrite(ANALOG_PINS[pin], value);
-  } else if (type == MOTOR) {
-    MOTORS[pin]->setSpeed(value);
+struct Pin {
+  PinType type;
+  int num;
+};
+
+Pin getPin(int startIndex) {
+  PinType type = DIGITAL;
+  if (commandBuffer[startIndex] == 'A') {
+    type = ANALOG;
+  }
+  else if (commandBuffer[startIndex] == 'M') {
+    type = MOTOR;
+  }
+  int pin = (int)(commandBuffer[startIndex + 1] - '0');
+  if (commandBuffer[startIndex] == '1') {
+    pin += 10;
+  }
+  return { type, pin };
+}
+
+void writeToPin(Pin pin, int value) {
+  if (pin.type == DIGITAL) {
+    digitalWrite(pin.num, value);
+  } else if (pin.type == ANALOG) {
+    analogWrite(ANALOG_PINS[pin.num], value);
+  } else if (pin.type == MOTOR) {
+    MOTORS[pin.num]->setSpeed(value);
   }
 //  Serial.print("Writing to pin ");
-//  Serial.print(type);
-//  Serial.print(pin);
+//  Serial.print(pin.type);
+//  Serial.print(pin.num);
 //  Serial.print(" value ");
 //  Serial.println(value);
 }
 
-void setMode(PinType type, int pin, int mode) {
-  if (type == DIGITAL) {
-    pinMode(pin, mode);
-  } else if (type == ANALOG) {
-    pinMode(ANALOG_PINS[pin], mode);
-  } else if (type == MOTOR) {
-    MOTORS[pin]->run(mode);
+void setMode(Pin pin, int mode) {
+  if (pin.type == DIGITAL) {
+    pinMode(pin.num, mode);
+  } else if (pin.type == ANALOG) {
+    pinMode(ANALOG_PINS[pin.num], mode);
+  } else if (pin.type == MOTOR) {
+    MOTORS[pin.num]->run(mode);
   }
 }
 
-int readValue(PinType type, int pin) {
-  if (MATRIX[pin + (type == ANALOG ? 14 : 0)]) {
-    
-  } else {
-    int value = -1;
-    if (type == DIGITAL) {
-      value = analogRead(pin);
-    } else if (type == ANALOG) {
-      value = analogRead(ANALOG_PINS[pin]);
-    }
-    return value;
+int readValue(Pin pin) {
+  int value = -1;
+  if (pin.type == DIGITAL) {
+    value = digitalRead(pin.num);
+  } else if (pin.type == ANALOG) {
+    value = analogRead(ANALOG_PINS[pin.num]);
   }
+  return value;
 }
 
-void printMatrixRecursive(PinType type, int pin, int index) {
+void printMatrixRecursive(Pin pin, int index) {
   if (index == NUM_MATPINS) {
-    if (type == DIGITAL) {
-      Serial.print(digitalRead(pin));
+    if (pin.type == DIGITAL) {
+      Serial.print(digitalRead(pin.num));
     } else {
-      int value = analogRead(ANALOG_PINS[pin]);
+      int value = analogRead(ANALOG_PINS[pin.num]);
       boolean magnet = MATRIX_THRESHOLD > value;
       Serial.print(magnet);
     }
     delay(1);
   } else {
     digitalWrite(MATPINS[index], HIGH);
-    printMatrixRecursive(type, pin, index + 1);
+    printMatrixRecursive(pin, index + 1);
     digitalWrite(MATPINS[index], LOW);
-    printMatrixRecursive(type, pin, index + 1);
+    printMatrixRecursive(pin, index + 1);
     if (index == NUM_MATPINS / 2) {
       Serial.print(';');
     }
   }
 }
 
-void printMatrix(PinType type, int pin) {
-  printMatrixRecursive(type, pin, 0);
+void printMatrix(Pin pin) {
+  printMatrixRecursive(pin, 0);
   Serial.println();
 }
 
@@ -97,18 +113,7 @@ int parseNum(int startPos, int base) {
 }
 
 void processCommand() {
-  // Find pin
-  PinType type = DIGITAL;
-  if (commandBuffer[0] == 'A') {
-    type = ANALOG;
-  }
-  else if (commandBuffer[0] == 'M') {
-    type = MOTOR;
-  }
-  int pin = (int)(commandBuffer[1] - '0');
-  if (commandBuffer[0] == '1') {
-    pin += 10;
-  }
+  Pin pin = getPin(0);
 
   // Set value
   if (commandBuffer[2] == ':') {
@@ -123,44 +128,44 @@ void processCommand() {
       int sign = commandBuffer[3] == '-' ? -1 : 1;
       value = parseNum(sign == 1 ? 3 : 4, 16) * sign;
     }
-    writeToPin(type, pin, value);
+    writeToPin(pin, value);
   }
 
   // Set mode
   if (commandBuffer[2] == '-') {
     if (commandBuffer[3] == 'I') {
-      setMode(type, pin, INPUT);
-      if (type == ANALOG || type == DIGITAL) {
-        MATRIX[pin + (type == ANALOG ? 14 : 0)] = false;
+      setMode(pin, INPUT);
+      if (pin.type == ANALOG || pin.type == DIGITAL) {
+        MATRIX[pin.num + (pin.type == ANALOG ? 14 : 0)] = false;
       }
     } else if (commandBuffer[3] == 'O') {
-      setMode(type, pin, OUTPUT);
-      if (type == ANALOG || type == DIGITAL) {
-        MATRIX[pin + (type == ANALOG ? 14 : 0)] = false;
+      setMode(pin, OUTPUT);
+      if (pin.type == ANALOG || pin.type == DIGITAL) {
+        MATRIX[pin.num + (pin.type == ANALOG ? 14 : 0)] = false;
       }
     } else if (commandBuffer[3] == 'S') {
-      setMode(type, pin, BRAKE);
+      setMode(pin, BRAKE);
     } else if (commandBuffer[3] == 'R') {
-      setMode(type, pin, RELEASE);
+      setMode(pin, RELEASE);
     } else if (commandBuffer[3] == 'F') {
-      setMode(type, pin, FORWARD);
+      setMode(pin, FORWARD);
     } else if (commandBuffer[3] == 'B') {
-      setMode(type, pin, BACKWARD);
+      setMode(pin, BACKWARD);
     } else if (commandBuffer[3] == 'M') {
-      setMode(type, pin, INPUT);
-      MATRIX[pin + (type == ANALOG ? 14 : 0)] = true;
+      setMode(pin, INPUT);
+      MATRIX[pin.num + (pin.type == ANALOG ? 14 : 0)] = true;
     } else if (commandBuffer[3] >= '0' && commandBuffer[3] <= '9') {
-      setMode(type, pin, parseNum(3, 10));
+      setMode(pin, parseNum(3, 10));
     }
   }
 
   // Read value
   if (commandBuffer[2] == '?') {
-    if ((type == ANALOG || type == DIGITAL) && MATRIX[pin + (type == ANALOG ? 14 : 0)]) {
-      printMatrix(type, pin);
+    if ((pin.type == ANALOG || pin.type == DIGITAL) && MATRIX[pin.num + (pin.type == ANALOG ? 14 : 0)]) {
+      printMatrix(pin);
     }
     else {
-      int value = readValue(type, pin);
+      int value = readValue(pin);
       Serial.println(value);
     }
   }

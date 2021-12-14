@@ -199,6 +199,8 @@ class Serial:
         check_inputs(port, value=value)
         if self.connected:
             self._write(f'{format_port(port)}:{format_value(value)}')
+            if isinstance(port, str) and port[0] == 'S':
+                self._read()  # Wait for stepper to finish
 
     def set_mode(self, port: Union[str, int], mode: Union[str, int]):
         """
@@ -232,12 +234,17 @@ class Serial:
         """
         check_inputs(port)
         if self.connected:
-            self._write(f'{port}?')
+            self._write(f'{format_port(port)}?')
             line = self._read()
             try:
                 return int(line)
             except:
                 return line
+
+    def reset_steppers(self, ports: Tuple[str, str, int, int]):
+        if self.connected:
+            self._write(f'R{"".join(format_port(p) for p in ports)}')
+            self._read()
 
     def _write(self, msg: str):
         """

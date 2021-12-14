@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from hardware.serial_protocol import Serial
+from src.hardware.serial_protocol import Serial
 from typing import *
 
 
@@ -59,7 +59,7 @@ class Motor:
         self._port = f'{motor_type}{port}'
         self._reversed = reversed
         self._min_speed = 0 if self.is_dc_motor else 1
-        self._abs_max_speed = 255 if motor_type == 'M' else 37
+        self._abs_max_speed = 255 if motor_type == 'M' else 7
         self._max_speed = self._abs_max_speed if max_speed < 1 else max_speed
         self._current_power = 0 if self.is_dc_motor else 1
         self._serial.set_speed(self._port, int(abs(self._current_power) * self._max_speed))
@@ -171,19 +171,19 @@ class Motor:
         Updates the motor, incrementing the current power towards the target
         while respecting the accel limit. To be called once each loop per motor.
         """
-        print(f'motor: {self.port}')
-        print(f'current: {self.current_power}')
-        print(f'target: {self.target_power}')
-        print(f'accel lim: {self.accel_lim}')
-        print(f'port: {self._port}')
-        print(f'max speed: {self._max_speed}')
+        # print(f'motor: {self.port}')
+        # print(f'current: {self.current_power}')
+        # print(f'target: {self.target_power}')
+        # print(f'accel lim: {self.accel_lim}')
+        # print(f'port: {self._port}')
+        # print(f'max speed: {self._max_speed}')
         if not self.accelerating:
             return
         elif self.current_power < self.target_power:
             new_pow = min(self.current_power + self.accel_lim, self.target_power)
         else:
             new_pow = max(self.current_power - self.accel_lim, self.target_power)
-        print(f'new pow: {new_pow}')
+        # print(f'new pow: {new_pow}')
         self._serial.set_speed(self._port, int(abs(new_pow) * self._max_speed))
         self._current_power = new_pow
 
@@ -427,7 +427,7 @@ class DriveSystem:
             if isinstance(motor, DcMotor):
                 motor.set_power(power)
             elif isinstance(motor, Stepper):
-                motor.increment_pos(power)
+                motor.increment_pos(int(power))
 
     @abstractmethod
     def _calculate_powers(self, direction: Tuple[float, float, float]):
@@ -461,7 +461,7 @@ class DriveSystem:
 
 
 class ChessDrive(DriveSystem):
-    def __init__(self, serial: Serial, steps_per_square: int = 51):
+    def __init__(self, serial: Serial, steps_per_square: float = 49.5):
         """
         :param serial: the Serial bridge to initialize the motors with
         """
@@ -470,7 +470,6 @@ class ChessDrive(DriveSystem):
         self.last_x = 0
         self.current_pos = (0, 0)
         super().__init__(motors)
-        print('Setup chess')
 
     def reset_pos(self):
         self.current_pos = (0, 0)
@@ -489,8 +488,11 @@ class ChessDrive(DriveSystem):
         :param direction: the target direction to move (see `move`)
         """
         x, y, _ = direction  # Chess system can't spin
-        offset = 10 if x * self.last_x < 0 else 0
-        self._motor_powers = {'x': x * self._steps_per_square + offset * (-1 if x < 0 else 1),
-                              'y': y * self._steps_per_square}
+        self._motor_powers = {'x': self._motor_powers['x'] + x * self._steps_per_square,
+                              'y': self._motor_powers['y'] + y * self._steps_per_square}
         self.last_x = x
         self.current_pos = (self.current_pos[0] + x, self.current_pos[1] + y)
+
+    def update(self):
+        super().update()
+        self._motor_powers = {'x': 0, 'y': 0}

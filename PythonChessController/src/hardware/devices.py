@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import *
-
+from time import sleep
 import chess
 
 from src.hardware.serial_protocol import Serial
@@ -24,10 +24,14 @@ class DigitalOutput:
         self._is_on = turn_on
 
     def turn_on(self):
-        self.set(True)
+        # self.set(True)
+        print('Turn on')
+        sleep(1)
 
     def turn_off(self):
-        self.set(False)
+        # self.set(False)
+        print('Turn off')
+        sleep(1)
 
     def toggle(self) -> bool:
         self.set(not self.is_on)
@@ -72,8 +76,8 @@ class DigitalInput(CachedValue):
     def _type(self) -> TypeVar:
         return TypeVar('Digital', bool)
 
-    def _fetch_value(self) -> Any:
-        return self._serial.get_value(self.port)
+    def _fetch_value(self) -> _type:
+        return (self._serial.get_value(self.port) == 1) ^ self.reversed
 
     def newly(self) -> Optional[bool]:
         if self.last_value is None:
@@ -145,23 +149,47 @@ class MoveSensor(CachedValue):
         super().__init__(serial, track=True)
         self._matrix = DigitalInputMatrixSet(serial, port, reversed=reversed, track=True)
         self.pick_up = None
+        self.prev_pick_up = None
+        self._start = [[j in (0, 1, 6, 7) for j in range(8)] for i in range(8)]
 
     @staticmethod
     def _index_to_move(indexes):
-        return chr(indexes[1] + ord('a')) + str(8 - indexes[0])
+        res = chr(indexes[0] + ord('a')) + str(indexes[1] + 1)
+        print(indexes, res)
+        return res
 
     @property
     def _type(self) -> TypeVar:
         return TypeVar('MoveSensor', Optional[chess.Move])
+
+    def wait_for_setup(self):
+        while True:
+            pieces = [[False for _ in range(8)] for _ in range(8)]
+            for i, j in self._matrix.value:
+                pieces[i][j] = True
+            print('\n'.join([''.join(['1' if pieces[i][j] else '0' for j in range(8)]) for i in range(8)]), end='\n\n')
+            if pieces == self._start:
+                return
+            sleep(0.5)
+            self._matrix.reset()
 
     def _fetch_value(self) -> _type:
         if self.pick_up is None:
             return None
         newly = self._matrix.newly()
         if len(newly) > 0:
+            print('Piece down: ', end='')
             set_down = self._index_to_move(list(newly)[0])
-            res = None if set_down == self.pick_up else self.pick_up + set_down
+            if self.prev_pick_up is None:
+                res = None if set_down == self.pick_up else self.pick_up + set_down
+            elif self.pick_up == set_down:
+                res = self.prev_pick_up + set_down
+            else:
+                res = None
             self.pick_up = None
+            self.prev_pick_up = None
+            if res is not None:
+                print(f'Returning {res}')
             return res
         return None
 
@@ -170,4 +198,6 @@ class MoveSensor(CachedValue):
         self._matrix.reset()
         oldly = self._matrix.oldly()
         if len(oldly) > 0:
+            print('Piece up: ', end='')
+            self.prev_pick_up = self.pick_up
             self.pick_up = self._index_to_move(list(oldly)[0])
