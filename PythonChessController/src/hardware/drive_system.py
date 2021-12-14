@@ -465,7 +465,7 @@ class ChessDrive(DriveSystem):
         """
         :param serial: the Serial bridge to initialize the motors with
         """
-        motors = {'x': Stepper(serial, 0), 'y': Stepper(serial, 1)}
+        motors = {'x': Stepper(serial, 0), 'y': Stepper(serial, 2)}
         self._steps_per_square = steps_per_square
         self.last_x = 0
         self.current_pos = (0, 0)

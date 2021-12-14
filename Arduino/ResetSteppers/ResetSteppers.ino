@@ -41,11 +41,11 @@ void setup() {
 
 void loop() {
   if (runReset) {
-    STEPPERS[1].moveRelativeInMillimeters(50);
+    STEPPERS[2].moveRelativeInMillimeters(50);
     STEPPERS[0].moveRelativeInMillimeters(50);
     
     STEPPERS[0].setupRelativeMoveInMillimeters(-350);
-    STEPPERS[1].setupRelativeMoveInMillimeters(-350);
+    STEPPERS[2].setupRelativeMoveInMillimeters(-350);
 
     boolean foundX = false;
     boolean foundY = false;
@@ -68,14 +68,14 @@ void loop() {
       }
 
       if (!foundY) {
-        STEPPERS[1].processMovement();
+        STEPPERS[2].processMovement();
         foundY = !digitalRead(12);
         if (foundY) {
-          STEPPERS[1].setupStop();
+          STEPPERS[2].setupStop();
           Serial.println("Found y");
         }
       } else if (!stoppedY) {
-        stoppedY = STEPPERS[1].processMovement();
+        stoppedY = STEPPERS[2].processMovement();
         if (stoppedY) {
           Serial.println("Stopped y");
         }

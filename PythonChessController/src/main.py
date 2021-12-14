@@ -9,9 +9,9 @@ from time import sleep
 
 
 if __name__ == '__main__':
-    drive = ChessDrive(Serial('COM8'))
+    drive = ChessDrive(Serial('COM14'))
     serial = Serial('COM7')
     magnet = DigitalOutput(serial, 8)
     moves = DigitalInputMatrix(serial, 'A0')
     print('Setup')
-    move_from_uci(drive, magnet, 'd1e3')
+    move_from_uci(drive, magnet, 'b1c3')

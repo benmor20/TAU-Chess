@@ -264,5 +264,5 @@ class Serial:
         :return: the Arduino's output
         """
         line = self.bridge.readline().decode()
-        # print(line)
+        # print(f'Response: {line}')
         return line

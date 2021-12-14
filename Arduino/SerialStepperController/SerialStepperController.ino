@@ -49,6 +49,16 @@ void resetSteppers() {
   STEPPERS[xMotor.num].setupRelativeMoveInMillimeters(-350);
   STEPPERS[yMotor.num].setupRelativeMoveInMillimeters(-350);
 
+//  Serial.println("D");
+//  Serial.print(xMotor.type);
+//  Serial.println(xMotor.num);
+//  Serial.print(yMotor.type);
+//  Serial.println(yMotor.num);
+//  Serial.print(xLimit.type);
+//  Serial.println(xLimit.num);
+//  Serial.print(yLimit.type);
+//  Serial.println(yLimit.num);
+
   boolean foundX = false;
   boolean foundY = false;
   boolean stoppedX = false;
@@ -134,7 +144,7 @@ void processCommand() {
       int sign = commandBuffer[3] == '-' ? -1 : 1;
       int value = parseNum(sign == 1 ? 3 : 4, 16) * sign;
       STEPPERS[pin.num].moveRelativeInMillimeters(value);
-      Serial.println("D");
+      Serial.println(value);
     }
   }
 
